@@ -60,10 +60,24 @@ _common_primitives = {int, float, bool, str, list, dict, tuple, type(None)}
 
 
 async def auto_await(value: t.Union[t.Awaitable["V"], "V"]) -> "V":
-    # Avoid a costly call to isawaitable
-    if type(value) in _common_primitives:
+    value_type = type(value)
+    if value_type in _common_primitives:
         return t.cast("V", value)
 
+    # Inline inspect.isawaitable to avoid function call, specializing for common cases
+    # Fast-path check: is a coroutine or has __await__ (without further inspect)
+    # CPython's inspect.isawaitable does:
+    # return (isinstance(obj, collections.abc.Awaitable) or inspect.isgenerator(obj) and obj.gi_code.co_flags & CO_COROUTINE) etc.
+    # We'll just do the minimal necessary: check for __await__
+
+    # Avoid calling inspect.isawaitable for common primitive types already filtered
+    # Next: fast hasattr to check if value is awaitable
+    __await__ = getattr(value_type, "__await__", None)
+    if __await__ is not None:
+        # Likely an awaitable object/coroutine
+        return await t.cast("t.Awaitable[V]", value)
+
+    # Fallback: call inspect.isawaitable in rare cases (in case magic/proxy objects override __getattr__)
     if inspect.isawaitable(value):
         return await t.cast("t.Awaitable[V]", value)
 
