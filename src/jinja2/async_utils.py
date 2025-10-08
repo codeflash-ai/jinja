@@ -96,4 +96,7 @@ def auto_aiter(
 async def auto_to_list(
     value: "t.AsyncIterable[V] | t.Iterable[V]",
 ) -> list["V"]:
+    # Small optimization: if input is already a list or tuple, return a copy synchronously
+    if isinstance(value, (list, tuple)):
+        return list(value)
     return [x async for x in auto_aiter(value)]
