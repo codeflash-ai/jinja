@@ -419,7 +419,7 @@ def url_quote(obj: t.Any, charset: str = "utf-8", for_qs: bool = False) -> str:
 
         obj = obj.encode(charset)
 
-    safe = b"" if for_qs else b"/"
+    safe = "" if for_qs else "/"
     rv = quote_from_bytes(obj, safe)
 
     if for_qs:
