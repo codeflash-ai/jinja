@@ -265,57 +265,89 @@ def urlize(
         or without the ``mailto:`` scheme. Validate IP addresses. Ignore
         parentheses and brackets in more cases.
     """
+    # Minor speedups: cache re patterns and escape results
+    # RE patterns are imported from jinja2.utils as _http_re, _email_re
     if trim_url_limit is not None:
 
         def trim_url(x: str) -> str:
             if len(x) > trim_url_limit:
                 return f"{x[:trim_url_limit]}..."
-
             return x
-
     else:
 
         def trim_url(x: str) -> str:
             return x
 
-    words = re.split(r"(\s+)", str(markupsafe.escape(text)))
+    # Cache escaped attributes outside loop
     rel_attr = f' rel="{markupsafe.escape(rel)}"' if rel else ""
     target_attr = f' target="{markupsafe.escape(target)}"' if target else ""
 
-    for i, word in enumerate(words):
-        head, middle, tail = "", word, ""
-        match = re.match(r"^([(<]|&lt;)+", middle)
+    # Fast path: escape and convert to string once
+    escaped_text = str(markupsafe.escape(text))
 
+    # Pre-compile frequently used patterns for speed
+    _leading_punct_re = re.compile(r"^([(<]|&lt;)+")
+    _trailing_punct_re = re.compile(r"([)>.,\n]|&gt;)+$")
+    _endings = (")", ">", ".", ",", "\n", "&gt;")
+    _balancers = [("(", ")"), ("<", ">"), ("&lt;", "&gt;")]
+
+    # If extra_schemes is present, make a tuple for faster startswith checks
+    schemes_tuple: tuple = ()
+    if extra_schemes is not None:
+        schemes_tuple = tuple(extra_schemes)
+
+    # Avoid global lookups in loop
+    from jinja2.utils import _email_re
+    from jinja2.utils import _http_re
+
+    words = re.split(r"(\s+)", escaped_text)
+    # Use enumerate once, and localize frequently used built-ins
+    enumerate_words = enumerate(words)
+    words_len = len(words)
+
+    # Optimization: use a direct range loop instead of enumerate, avoids tuple creation cost
+    idx = 0
+    while idx < words_len:
+        word = words[idx]
+        head, middle, tail = "", word, ""
+
+        # Leading punct
+        match = _leading_punct_re.match(middle)
         if match:
             head = match.group()
             middle = middle[match.end() :]
 
-        # Unlike lead, which is anchored to the start of the string,
-        # need to check that the string ends with any of the characters
-        # before trying to match all of them, to avoid backtracking.
-        if middle.endswith((")", ">", ".", ",", "\n", "&gt;")):
-            match = re.search(r"([)>.,\n]|&gt;)+$", middle)
-
+        # Trailing punct, check by last char for fast rejection
+        if middle and middle.endswith(_endings):
+            match = _trailing_punct_re.search(middle)
             if match:
                 tail = match.group()
                 middle = middle[: match.start()]
 
-        # Prefer balancing parentheses in URLs instead of ignoring a
-        # trailing character.
-        for start_char, end_char in ("(", ")"), ("<", ">"), ("&lt;", "&gt;"):
+        # Prefer balancing parentheses in URLs instead of ignoring a trailing character.
+        for start_char, end_char in _balancers:
             start_count = middle.count(start_char)
-
-            if start_count <= middle.count(end_char):
-                # Balanced, or lighter on the left
+            end_count = middle.count(end_char)
+            if start_count <= end_count:
                 continue
 
-            # Move as many as possible from the tail to balance
-            for _ in range(min(start_count, tail.count(end_char))):
+            tail_end_count = tail.count(end_char)
+            # The min part is tiny but can save us tail traversals
+            moves = min(start_count, tail_end_count)
+            # Fast path: if there's nothing to move, skip
+            if moves == 0:
+                continue
+
+            # Faster balancing: find indices and slice once, avoid repeated .index()
+            # While loop guarantees per original logic
+            while moves > 0:
+                # Find first position of `end_char`
                 end_index = tail.index(end_char) + len(end_char)
-                # Move anything in the tail before the end char too
                 middle += tail[:end_index]
                 tail = tail[end_index:]
+                moves -= 1
 
+        # Main url/email handling logic
         if _http_re.match(middle):
             if middle.startswith("https://") or middle.startswith("http://"):
                 middle = (
@@ -339,13 +371,16 @@ def urlize(
             and _email_re.match(middle)
         ):
             middle = f'<a href="mailto:{middle}">{middle}</a>'
-
-        elif extra_schemes is not None:
-            for scheme in extra_schemes:
+        # Fast path for extra_schemes: only check if needed, and use tuple + startswith
+        elif schemes_tuple:
+            for scheme in schemes_tuple:
+                # Since extra_schemes may contain prefix overlaps, keep original check strict
                 if middle != scheme and middle.startswith(scheme):
                     middle = f'<a href="{middle}"{rel_attr}{target_attr}>{middle}</a>'
+                    break
 
-        words[i] = f"{head}{middle}{tail}"
+        words[idx] = f"{head}{middle}{tail}"
+        idx += 1
 
     return "".join(words)
 
