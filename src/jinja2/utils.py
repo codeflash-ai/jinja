@@ -97,7 +97,9 @@ class _PassArg(enum.Enum):
 
 def internalcode(f: F) -> F:
     """Marks the function as internally used"""
-    internal_code.add(f.__code__)
+    code = f.__code__
+    if code not in internal_code:
+        internal_code.add(code)
     return f
 
 
