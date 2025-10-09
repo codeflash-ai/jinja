@@ -24,7 +24,7 @@ def test_even(value: int) -> bool:
 
 def test_divisibleby(value: int, num: int) -> bool:
     """Check if a variable is divisible by a number."""
-    return value % num == 0
+    return not value % num
 
 
 def test_defined(value: t.Any) -> bool:
