@@ -138,6 +138,9 @@ def test_float(value: t.Any) -> bool:
 
 def test_lower(value: str) -> bool:
     """Return true if the variable is lowercased."""
+    # Only convert to string if value is not already a string (avoids unnecessary allocation)
+    if isinstance(value, str):
+        return value.islower()
     return str(value).islower()
 
 
