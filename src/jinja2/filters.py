@@ -213,6 +213,8 @@ def do_replace(
 
 def do_upper(s: str) -> str:
     """Convert a value to uppercase."""
+    if isinstance(s, str):
+        return s.upper()
     return soft_str(s).upper()
 
 
