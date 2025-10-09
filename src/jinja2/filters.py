@@ -705,29 +705,25 @@ def do_filesizeformat(value: str | float | int, binary: bool = False) -> str:
     """
     bytes = float(value)
     base = 1024 if binary else 1000
-    prefixes = [
-        ("KiB" if binary else "kB"),
-        ("MiB" if binary else "MB"),
-        ("GiB" if binary else "GB"),
-        ("TiB" if binary else "TB"),
-        ("PiB" if binary else "PB"),
-        ("EiB" if binary else "EB"),
-        ("ZiB" if binary else "ZB"),
-        ("YiB" if binary else "YB"),
-    ]
+    if binary:
+        prefixes = ("KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB")
+    else:
+        prefixes = ("kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
 
     if bytes == 1:
         return "1 Byte"
     elif bytes < base:
         return f"{int(bytes)} Bytes"
     else:
-        for i, prefix in enumerate(prefixes):
-            unit = base ** (i + 2)
-
-            if bytes < unit:
-                return f"{base * bytes / unit:.1f} {prefix}"
-
-        return f"{base * bytes / unit:.1f} {prefix}"
+        # Precompute base powers for efficiency and avoid recalculating in loop
+        unit = base
+        for prefix in prefixes:
+            next_unit = unit * base
+            if bytes < next_unit:
+                return f"{bytes / unit:.1f} {prefix}"
+            unit = next_unit
+        # If no return inside the loop, use the largest prefix
+        return f"{bytes / unit:.1f} {prefixes[-1]}"
 
 
 def do_pprint(value: t.Any) -> str:
