@@ -1,6 +1,5 @@
 """The runtime functions and state used by compiled templates."""
 
-import functools
 import sys
 import typing as t
 from collections import abc
@@ -134,7 +133,6 @@ class TemplateReference:
 
 
 def _dict_method_all(dict_method: F) -> F:
-    @functools.wraps(dict_method)
     def f_all(self: "Context") -> t.Any:
         return dict_method(self.get_all())
 
