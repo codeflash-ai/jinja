@@ -16,6 +16,12 @@ import markupsafe
 if t.TYPE_CHECKING:
     import typing_extensions as te
 
+_WORD_SPLIT_RE = re.compile(r"(\s+)")
+
+_HEAD_RE = re.compile(r"^([(<]|&lt;)+")
+
+_TAIL_RE = re.compile(r"([)>.,\n]|&gt;)+$")
+
 F = t.TypeVar("F", bound=t.Callable[..., t.Any])
 
 
@@ -198,30 +204,30 @@ def pformat(obj: t.Any) -> str:
 
 _http_re = re.compile(
     r"""
-    ^
-    (
-        (https?://|www\.)  # scheme or www
-        (([\w%-]+\.)+)?  # subdomain
+        ^
         (
-            [a-z]{2,63}  # basic tld
+            (https?://|www\.)  # scheme or www
+            (([\w%-]+\.)+)?  # subdomain
+            (
+                [a-z]{2,63}  # basic tld
+            |
+                xn--[\w%]{2,59}  # idna tld
+            )
         |
-            xn--[\w%]{2,59}  # idna tld
-        )
-    |
-        ([\w%-]{2,63}\.)+  # basic domain
-        (com|net|int|edu|gov|org|info|mil)  # basic tld
-    |
-        (https?://)  # scheme
-        (
-            (([\d]{1,3})(\.[\d]{1,3}){3})  # IPv4
+            ([\w%-]{2,63}\.)+  # basic domain
+            (com|net|int|edu|gov|org|info|mil)  # basic tld
         |
-            (\[([\da-f]{0,4}:){2}([\da-f]{0,4}:?){1,6}])  # IPv6
+            (https?://)  # scheme
+            (
+                (([\d]{1,3})(\.[\d]{1,3}){3})  # IPv4
+            |
+                (\[([\da-f]{0,4}:){2}([\da-f]{0,4}:?){1,6}])  # IPv6
+            )
         )
-    )
-    (?::[\d]{1,5})?  # port
-    (?:[/?#]\S*)?  # path, query, and fragment
-    $
-    """,
+        (?::[\d]{1,5})?  # port
+        (?:[/?#]\S*)?  # path, query, and fragment
+        $
+        """,
     re.IGNORECASE | re.VERBOSE,
 )
 _email_re = re.compile(r"^\S+@\w[\w.-]*\.\w+$")
@@ -265,6 +271,14 @@ def urlize(
         or without the ``mailto:`` scheme. Validate IP addresses. Ignore
         parentheses and brackets in more cases.
     """
+    # Minimize lookup cost for functions used in tight loops
+    escape = markupsafe.escape
+    http_re = _http_re
+    email_re = _email_re
+    word_split = _WORD_SPLIT_RE
+    head_re = _HEAD_RE
+    tail_re = _TAIL_RE
+
     if trim_url_limit is not None:
 
         def trim_url(x: str) -> str:
@@ -272,51 +286,51 @@ def urlize(
                 return f"{x[:trim_url_limit]}..."
 
             return x
-
     else:
 
         def trim_url(x: str) -> str:
             return x
 
-    words = re.split(r"(\s+)", str(markupsafe.escape(text)))
-    rel_attr = f' rel="{markupsafe.escape(rel)}"' if rel else ""
-    target_attr = f' target="{markupsafe.escape(target)}"' if target else ""
+    # Avoid repeated escaping and compiling regexes per run
+    escaped_text = escape(text)
+    words = word_split.split(str(escaped_text))
+    rel_attr = f' rel="{escape(rel)}"' if rel else ""
+    target_attr = f' target="{escape(target)}"' if target else ""
+
+    # Convert extra_schemes to tuple if not None, for efficient loops
+    if extra_schemes is not None:
+        extra_schemes = tuple(extra_schemes)
 
     for i, word in enumerate(words):
         head, middle, tail = "", word, ""
-        match = re.match(r"^([(<]|&lt;)+", middle)
-
+        # Only match if the string starts correctly, else skip
+        match = head_re.match(middle)
         if match:
             head = match.group()
             middle = middle[match.end() :]
 
-        # Unlike lead, which is anchored to the start of the string,
-        # need to check that the string ends with any of the characters
-        # before trying to match all of them, to avoid backtracking.
         if middle.endswith((")", ">", ".", ",", "\n", "&gt;")):
-            match = re.search(r"([)>.,\n]|&gt;)+$", middle)
-
+            match = tail_re.search(middle)
             if match:
                 tail = match.group()
                 middle = middle[: match.start()]
 
         # Prefer balancing parentheses in URLs instead of ignoring a
         # trailing character.
-        for start_char, end_char in ("(", ")"), ("<", ">"), ("&lt;", "&gt;"):
+        # Optimize by counting end_char in tail once per (start_char, end_char) pair
+        for start_char, end_char in (("(", ")"), ("<", ">"), ("&lt;", "&gt;")):
             start_count = middle.count(start_char)
+            if start_count > 0:
+                end_count = tail.count(end_char)
+                if start_count > middle.count(end_char):
+                    # Move as many as possible from the tail to balance
+                    for _ in range(min(start_count, end_count)):
+                        end_index = tail.index(end_char) + len(end_char)
+                        middle += tail[:end_index]
+                        tail = tail[end_index:]
 
-            if start_count <= middle.count(end_char):
-                # Balanced, or lighter on the left
-                continue
-
-            # Move as many as possible from the tail to balance
-            for _ in range(min(start_count, tail.count(end_char))):
-                end_index = tail.index(end_char) + len(end_char)
-                # Move anything in the tail before the end char too
-                middle += tail[:end_index]
-                tail = tail[end_index:]
-
-        if _http_re.match(middle):
+        # URL/Email linkification logic, unchanged in behavior, but minimal attribute lookups
+        if http_re.match(middle):
             if middle.startswith("https://") or middle.startswith("http://"):
                 middle = (
                     f'<a href="{middle}"{rel_attr}{target_attr}>{trim_url(middle)}</a>'
@@ -326,20 +340,17 @@ def urlize(
                     f'<a href="https://{middle}"{rel_attr}{target_attr}>'
                     f"{trim_url(middle)}</a>"
                 )
-
-        elif middle.startswith("mailto:") and _email_re.match(middle[7:]):
+        elif middle.startswith("mailto:") and email_re.match(middle[7:]):
             middle = f'<a href="{middle}">{middle[7:]}</a>'
-
         elif (
             "@" in middle
             and not middle.startswith("www.")
             # ignore values like `@a@b`
             and not middle.startswith("@")
             and ":" not in middle
-            and _email_re.match(middle)
+            and email_re.match(middle)
         ):
             middle = f'<a href="mailto:{middle}">{middle}</a>'
-
         elif extra_schemes is not None:
             for scheme in extra_schemes:
                 if middle != scheme and middle.startswith(scheme):
@@ -704,6 +715,7 @@ class Cycler:
         if not items:
             raise RuntimeError("at least one item has to be provided")
         self.items = items
+        self.len_items = len(items)  # Cache length to avoid repeated calls to len()
         self.pos = 0
 
     def reset(self) -> None:
@@ -721,11 +733,18 @@ class Cycler:
         """Return the current item, then advance :attr:`current` to the
         next item.
         """
-        rv = self.current
-        self.pos = (self.pos + 1) % len(self.items)
+        rv = self.items[self.pos]
+        self.pos += 1
+        if self.pos == self.len_items:
+            self.pos = 0
         return rv
 
     __next__ = next
+
+    @property
+    def current(self) -> t.Any:
+        # This preserves the 'current' attribute expected in the snippet.
+        return self.items[self.pos]
 
 
 class Joiner:

@@ -14,6 +14,8 @@ from markupsafe import escape
 from markupsafe import Markup
 from markupsafe import soft_str
 
+from jinja2.nodes import EvalContext
+
 from .async_utils import async_variant
 from .async_utils import auto_aiter
 from .async_utils import auto_await
@@ -786,12 +788,17 @@ def do_urlize(
        The ``target`` parameter was added.
     """
     policies = eval_ctx.environment.policies
-    rel_parts = set((rel or "").split())
 
+    # Use chained updates for rel_parts for better code locality and reduce re-processing
+    rel_parts = set()
+    rel_str = rel or ""
+    if rel_str:
+        rel_parts.update(rel_str.split())
     if nofollow:
         rel_parts.add("nofollow")
-
-    rel_parts.update((policies["urlize.rel"] or "").split())
+    rel_policy = policies["urlize.rel"] or ""
+    if rel_policy:
+        rel_parts.update(rel_policy.split())
     rel = " ".join(sorted(rel_parts)) or None
 
     if target is None:
@@ -800,8 +807,10 @@ def do_urlize(
     if extra_schemes is None:
         extra_schemes = policies["urlize.extra_schemes"] or ()
 
+    # Only do regex check once per scheme, avoid repeated access
+    uri_scheme_re = _uri_scheme_re
     for scheme in extra_schemes:
-        if _uri_scheme_re.fullmatch(scheme) is None:
+        if uri_scheme_re.fullmatch(scheme) is None:
             raise FilterArgumentError(f"{scheme!r} is not a valid URI scheme prefix.")
 
     rv = urlize(
