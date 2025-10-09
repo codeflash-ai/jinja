@@ -1,5 +1,6 @@
 """Built-in template filters used with the ``|`` operator."""
 
+import html
 import math
 import random
 import re
@@ -27,6 +28,10 @@ from .utils import pass_eval_context
 from .utils import pformat
 from .utils import url_quote
 from .utils import urlize
+
+_STRIPTAGS_RE = re.compile(r"<.*?>", re.DOTALL)
+
+_WHITESPACE_RE = re.compile(r"\s+")
 
 if t.TYPE_CHECKING:
     import typing_extensions as te
@@ -1049,7 +1054,11 @@ def do_striptags(value: "str | HasHTML") -> str:
     if hasattr(value, "__html__"):
         value = t.cast("HasHTML", value).__html__()
 
-    return Markup(str(value)).striptags()
+    s = str(value)
+    s = _STRIPTAGS_RE.sub("", s)
+    s = html.unescape(s)
+    s = _WHITESPACE_RE.sub(" ", s)
+    return s.strip()
 
 
 def sync_do_slice(
