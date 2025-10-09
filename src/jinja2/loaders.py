@@ -654,7 +654,9 @@ class ModuleLoader(BaseLoader):
 
     @staticmethod
     def get_module_filename(name: str) -> str:
-        return ModuleLoader.get_template_key(name) + ".py"
+        name_bytes = name.encode("utf-8")
+        h = sha1(name_bytes)
+        return f"tmpl_{h.hexdigest()}.py"
 
     @internalcode
     def load(
