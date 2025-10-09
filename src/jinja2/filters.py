@@ -371,13 +371,12 @@ def do_dictsort(
     else:
         raise FilterArgumentError('You can only sort by either "key" or "value"')
 
+    # Inline the ignore_case function for a small performance gain
     def sort_func(item: tuple[t.Any, t.Any]) -> t.Any:
-        value = item[pos]
-
-        if not case_sensitive:
-            value = ignore_case(value)
-
-        return value
+        val = item[pos]
+        if not case_sensitive and isinstance(val, str):
+            return val.lower()
+        return val
 
     return sorted(value.items(), key=sort_func, reverse=reverse)
 
