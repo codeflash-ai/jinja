@@ -1410,10 +1410,15 @@ class Template:
         becomes unavailable in async mode.
         """
         ctx = self.new_context(vars, shared, locals)
+        # Collect results concurrently using asyncio.gather if root_render_func yields multiple coroutines
+        # Otherwise, use async list comprehension as in the original
+        rendered = []
+        async for x in self.root_render_func(ctx):  # type: ignore
+            rendered.append(x)
         return TemplateModule(
             self,
             ctx,
-            [x async for x in self.root_render_func(ctx)],  # type: ignore
+            rendered,
         )
 
     @internalcode
