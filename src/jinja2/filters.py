@@ -646,6 +646,8 @@ async def do_join(
 
 def do_center(value: str, width: int = 80) -> str:
     """Centers the value in a field of a given width."""
+    if isinstance(value, str):
+        return value.center(width)
     return soft_str(value).center(width)
 
 
