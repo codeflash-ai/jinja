@@ -86,7 +86,8 @@ class Symbols:
 
     def copy(self) -> "te.Self":
         rv = object.__new__(self.__class__)
-        rv.__dict__.update(self.__dict__)
+        rv.level = self.level
+        rv.parent = self.parent
         rv.refs = self.refs.copy()
         rv.loads = self.loads.copy()
         rv.stores = self.stores.copy()
