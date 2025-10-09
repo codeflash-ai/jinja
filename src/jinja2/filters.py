@@ -28,6 +28,8 @@ from .utils import pformat
 from .utils import url_quote
 from .utils import urlize
 
+__MARKUP_CTOR = Markup
+
 if t.TYPE_CHECKING:
     import typing_extensions as te
 
@@ -1370,7 +1372,7 @@ def do_mark_safe(value: str) -> Markup:
     """Mark the value as safe which means that in an environment with automatic
     escaping enabled this variable will not be escaped.
     """
-    return Markup(value)
+    return __MARKUP_CTOR(value)
 
 
 def do_mark_unsafe(value: str) -> str:
