@@ -170,9 +170,20 @@ def do_urlencode(
     else:
         items = value  # type: ignore
 
-    return "&".join(
-        f"{url_quote(k, for_qs=True)}={url_quote(v, for_qs=True)}" for k, v in items
-    )
+    # Prefetch methods used in loop for minor optimization
+    url_quote_ = url_quote
+    eq = "="
+    amp = "&"
+
+    # Convert to list for list comprehension (more efficient assembly for known input)
+    items_list = list(items)
+
+    # Use list comprehension for better performance and local variable lookups
+    parts = [
+        f"{url_quote_(k, for_qs=True)}{eq}{url_quote_(v, for_qs=True)}"
+        for k, v in items_list
+    ]
+    return amp.join(parts)
 
 
 @pass_eval_context

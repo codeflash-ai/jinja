@@ -416,13 +416,14 @@ def url_quote(obj: t.Any, charset: str = "utf-8", for_qs: bool = False) -> str:
     if not isinstance(obj, bytes):
         if not isinstance(obj, str):
             obj = str(obj)
-
         obj = obj.encode(charset)
 
-    safe = b"" if for_qs else b"/"
+    # For quote_from_bytes, safe must be str not bytes for optimal path
+    safe = "" if for_qs else "/"
     rv = quote_from_bytes(obj, safe)
 
-    if for_qs:
+    # Only call replace if "%20" actually appears, avoiding extra allocations
+    if for_qs and "%20" in rv:
         rv = rv.replace("%20", "+")
 
     return rv
@@ -704,6 +705,7 @@ class Cycler:
         if not items:
             raise RuntimeError("at least one item has to be provided")
         self.items = items
+        self.len_items = len(items)  # Cache length to avoid repeated calls to len()
         self.pos = 0
 
     def reset(self) -> None:
@@ -721,11 +723,18 @@ class Cycler:
         """Return the current item, then advance :attr:`current` to the
         next item.
         """
-        rv = self.current
-        self.pos = (self.pos + 1) % len(self.items)
+        rv = self.items[self.pos]
+        self.pos += 1
+        if self.pos == self.len_items:
+            self.pos = 0
         return rv
 
     __next__ = next
+
+    @property
+    def current(self) -> t.Any:
+        # This preserves the 'current' attribute expected in the snippet.
+        return self.items[self.pos]
 
 
 class Joiner:
