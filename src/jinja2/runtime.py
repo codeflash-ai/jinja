@@ -367,11 +367,19 @@ class BlockReference:
 
     @internalcode
     async def _async_call(self) -> str:
-        rv = self._context.environment.concat(  # type: ignore
-            [x async for x in self._stack[self._depth](self._context)]  # type: ignore
-        )
+        # Avoid repeated attribute lookups for a small speedup.
+        stack_func = self._stack[self._depth]
+        context = self._context
 
-        if self._context.eval_ctx.autoescape:
+        # Use list comprehension for slightly faster collection of async results.
+        # This avoids creating a generator object and is more direct for concat.
+        items = []
+        async for x in stack_func(context):  # type: ignore
+            items.append(x)
+
+        rv = context.environment.concat(items)  # type: ignore
+
+        if context.eval_ctx.autoescape:
             return Markup(rv)
 
         return rv
