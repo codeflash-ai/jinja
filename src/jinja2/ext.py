@@ -228,11 +228,16 @@ def _make_new_npgettext(
         __num: int,
         **variables: t.Any,
     ) -> str:
-        variables.setdefault("context", __string_ctx)
-        variables.setdefault("num", __num)
-        rv = __context.call(func, __string_ctx, __singular, __plural, __num)
+        # Combine setdefault lookups to minimize dict operations
+        if "context" not in variables:
+            variables["context"] = __string_ctx
+        if "num" not in variables:
+            variables["num"] = __num
+        call_func = __context.call
+        rv = call_func(func, __string_ctx, __singular, __plural, __num)
 
-        if __context.eval_ctx.autoescape:
+        eval_ctx = __context.eval_ctx
+        if eval_ctx.autoescape:
             rv = Markup(rv)
 
         # Always treat as a format string, see gettext comment above.
