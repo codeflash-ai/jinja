@@ -133,7 +133,11 @@ class TemplateSyntaxError(TemplateError):
         # multiple required arguments have problems with pickling.
         # Without this, raises TypeError: __init__() missing 1 required
         # positional argument: 'lineno'
-        return self.__class__, (self.message, self.lineno, self.name, self.filename)
+        cls = self.__class__
+        # access self.message directly from args for performance
+        # (Exception's first arg is always the 'message')
+        message = self.args[0]
+        return cls, (message, self.lineno, self.name, self.filename)
 
 
 class TemplateAssertionError(TemplateSyntaxError):
