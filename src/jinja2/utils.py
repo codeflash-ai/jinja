@@ -704,6 +704,7 @@ class Cycler:
         if not items:
             raise RuntimeError("at least one item has to be provided")
         self.items = items
+        self.len_items = len(items)  # Cache length to avoid repeated calls to len()
         self.pos = 0
 
     def reset(self) -> None:
@@ -721,11 +722,18 @@ class Cycler:
         """Return the current item, then advance :attr:`current` to the
         next item.
         """
-        rv = self.current
-        self.pos = (self.pos + 1) % len(self.items)
+        rv = self.items[self.pos]
+        self.pos += 1
+        if self.pos == self.len_items:
+            self.pos = 0
         return rv
 
     __next__ = next
+
+    @property
+    def current(self) -> t.Any:
+        # This preserves the 'current' attribute expected in the snippet.
+        return self.items[self.pos]
 
 
 class Joiner:
