@@ -218,6 +218,8 @@ def do_upper(s: str) -> str:
 
 def do_lower(s: str) -> str:
     """Convert a value to lowercase."""
+    if isinstance(s, str):
+        return s.lower()
     return soft_str(s).lower()
 
 
