@@ -49,9 +49,9 @@ V = t.TypeVar("V")
 def ignore_case(value: V) -> V:
     """For use as a postprocessor for :func:`make_attrgetter`. Converts strings
     to lowercase and returns other types as-is."""
+    # Directly return value.lower() for str, else return value (avoids unnecessary cast)
     if isinstance(value, str):
-        return t.cast(V, value.lower())
-
+        return value.lower()
     return value
 
 
