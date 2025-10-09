@@ -217,8 +217,17 @@ class Frame:
     def copy(self) -> "te.Self":
         """Create a copy of the current one."""
         rv = object.__new__(self.__class__)
-        rv.__dict__.update(self.__dict__)
+        rv.eval_ctx = self.eval_ctx
+        rv.parent = self.parent
         rv.symbols = self.symbols.copy()
+        rv.require_output_check = self.require_output_check
+        rv.buffer = self.buffer
+        rv.block = self.block
+        rv.toplevel = self.toplevel
+        rv.rootlevel = self.rootlevel
+        rv.loop_frame = self.loop_frame
+        rv.block_frame = self.block_frame
+        rv.soft_frame = self.soft_frame
         return rv
 
     def inner(self, isolated: bool = False) -> "Frame":
