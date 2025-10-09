@@ -1248,26 +1248,33 @@ class Template:
         namespace: t.MutableMapping[str, t.Any],
         globals: t.MutableMapping[str, t.Any],
     ) -> "Template":
-        t: Template = object.__new__(cls)
-        t.environment = environment
-        t.globals = globals
-        t.name = namespace["name"]
-        t.filename = namespace["__file__"]
-        t.blocks = namespace["blocks"]
+        # Avoid multiple lookups by storing commonly used keys upfront
+        name = namespace["name"]
+        filename = namespace["__file__"]
+        blocks = namespace["blocks"]
+        root_render_func = namespace["root"]
+        debug_info = namespace["debug_info"]
+
+        t_obj: Template = object.__new__(cls)
+        t_obj.environment = environment
+        t_obj.globals = globals
+        t_obj.name = name
+        t_obj.filename = filename
+        t_obj.blocks = blocks
 
         # render function and module
-        t.root_render_func = namespace["root"]
-        t._module = None
+        t_obj.root_render_func = root_render_func
+        t_obj._module = None
 
         # debug and loader helpers
-        t._debug_info = namespace["debug_info"]
-        t._uptodate = None
+        t_obj._debug_info = debug_info
+        t_obj._uptodate = None
 
-        # store the reference
+        # store the reference (do only once per key)
         namespace["environment"] = environment
-        namespace["__jinja_template__"] = t
+        namespace["__jinja_template__"] = t_obj
 
-        return t
+        return t_obj
 
     def render(self, *args: t.Any, **kwargs: t.Any) -> str:
         """This method accepts the same arguments as the `dict` constructor:
