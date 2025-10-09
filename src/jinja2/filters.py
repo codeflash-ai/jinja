@@ -1177,8 +1177,10 @@ def do_round(
     if method == "common":
         return round(value, precision)
 
-    func = getattr(math, method)
-    return t.cast(float, func(value * (10**precision)) / (10**precision))
+    factor = 10**precision
+    if method == "ceil":
+        return math.ceil(value * factor) / factor
+    return math.floor(value * factor) / factor
 
 
 class _GroupTuple(t.NamedTuple):
