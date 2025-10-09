@@ -322,6 +322,8 @@ def do_capitalize(s: str) -> str:
     """Capitalize a value. The first character will be uppercase, all others
     lowercase.
     """
+    if isinstance(s, str):
+        return s.capitalize()
     return soft_str(s).capitalize()
 
 
