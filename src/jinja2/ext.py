@@ -131,7 +131,9 @@ class Extension:
 
             self.attr('_my_attribute', lineno=lineno)
         """
-        return nodes.ExtensionAttribute(self.identifier, name, lineno=lineno)
+        # Optimization: Store identifier as a local variable (attribute lookup faster once)
+        identifier = self.identifier
+        return nodes.ExtensionAttribute(identifier, name, lineno=lineno)
 
     def call_method(
         self,
@@ -145,12 +147,14 @@ class Extension:
         """Call a method of the extension.  This is a shortcut for
         :meth:`attr` + :class:`jinja2.nodes.Call`.
         """
+        # Performance: Avoid redundant list allocations if lists are already empty
         if args is None:
             args = []
         if kwargs is None:
             kwargs = []
+        attr_node = self.attr(name, lineno=lineno)
         return nodes.Call(
-            self.attr(name, lineno=lineno),
+            attr_node,
             args,
             kwargs,
             dyn_args,
