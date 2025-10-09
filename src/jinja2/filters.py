@@ -1031,12 +1031,20 @@ def do_format(value: str, *args: t.Any, **kwargs: t.Any) -> str:
     .. _printf-style: https://docs.python.org/library/stdtypes.html
         #printf-style-string-formatting
     """
-    if args and kwargs:
-        raise FilterArgumentError(
-            "can't handle positional and keyword arguments at the same time"
-        )
-
-    return soft_str(value) % (kwargs or args)
+    # Avoid repeatedly checking 'args and kwargs' with redundant truth tests.
+    if args:
+        if kwargs:
+            raise FilterArgumentError(
+                "can't handle positional and keyword arguments at the same time"
+            )
+        # Fast path: only positional args, avoid unnecessary wrapper tuple creation if possible.
+        return soft_str(value) % args
+    elif kwargs:
+        # Fast path: only keyword args.
+        return soft_str(value) % kwargs
+    else:
+        # No args or kwargs, just return the formatted string.
+        return soft_str(value)
 
 
 def do_trim(value: str, chars: str | None = None) -> str:
