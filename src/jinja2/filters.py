@@ -1041,6 +1041,8 @@ def do_format(value: str, *args: t.Any, **kwargs: t.Any) -> str:
 
 def do_trim(value: str, chars: str | None = None) -> str:
     """Strip leading and trailing characters, by default whitespace."""
+    if isinstance(value, str):
+        return value.strip(chars)
     return soft_str(value).strip(chars)
 
 
