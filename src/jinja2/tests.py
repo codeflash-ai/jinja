@@ -143,6 +143,9 @@ def test_lower(value: str) -> bool:
 
 def test_upper(value: str) -> bool:
     """Return true if the variable is uppercased."""
+    # Avoid unnecessary str() conversion when value is already str
+    if isinstance(value, str):
+        return value.isupper()
     return str(value).isupper()
 
 
